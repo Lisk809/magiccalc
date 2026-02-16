@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Material Calculator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f3f6fb;
+            --surface: #ffffff;
+            --primary: #d3e3fd;
+            --on-primary: #041e49;
+            --secondary: #e8def8;
+            --on-secondary: #1d192b;
+            --accent: #0b57d0;
+            --text-main: #1f1f1f;
+            --display-bg: #f0f4f9;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .calculator {
+            background-color: var(--surface);
+            width: 350px;
+            padding: 24px;
+            border-radius: 32px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+
+        .display {
+            background-color: var(--display-bg);
+            height: 140px;
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: flex-end;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .display-main {
+            font-size: 52px;
+            color: var(--text-main);
+            word-break: break-all;
+            line-height: 1.2;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        button {
+            border: none;
+            outline: none;
+            height: 68px;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        button:active { transform: scale(0.92); filter: brightness(0.9); }
+
+        /* 数字按钮：圆形 */
+        .btn-num {
+            background-color: var(--surface);
+            color: var(--text-main);
+            border: 1px solid #eeeeee;
+            border-radius: 50%;
+        }
+
+        /* 操作符：圆角矩形 */
+        .btn-op {
+            background-color: var(--primary);
+            color: var(--on-primary);
+            border-radius: 24px;
+            font-weight: 500;
+        }
+
+        .btn-special {
+            background-color: var(--secondary);
+            color: var(--on-secondary);
+            border-radius: 24px;
+        }
+
+        .btn-equal {
+            background-color: var(--accent);
+            color: white;
+            border-radius: 24px;
+        }
+
+        .span-2 {
+            grid-column: span 2;
+            border-radius: 34px;
+            aspect-ratio: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="calculator">
+    <div class="display">
+        <div id="screen" class="display-main">0</div>
+    </div>
+    <div class="grid">
+        <button class="btn-special" onclick="reset()">AC</button>
+        <button class="btn-special" onclick="pressOp('/')">÷</button>
+        <button class="btn-special" onclick="pressOp('*')">×</button>
+        <button class="btn-op" onclick="backspace()">⌫</button>
+
+        <button class="btn-num" onclick="pressKey('7')">7</button>
+        <button class="btn-num" onclick="pressKey('8')">8</button>
+        <button class="btn-num" onclick="pressKey('9')">9</button>
+        <button class="btn-op" onclick="pressOp('-')">−</button>
+
+        <button class="btn-num" onclick="pressKey('4')">4</button>
+        <button class="btn-num" onclick="pressKey('5')">5</button>
+        <button class="btn-num" onclick="pressKey('6')">6</button>
+        <button class="btn-op" onclick="pressOp('+')">+</button>
+
+        <button class="btn-num" onclick="pressKey('1')">1</button>
+        <button class="btn-num" onclick="pressKey('2')">2</button>
+        <button class="btn-num" onclick="pressKey('3')">3</button>
+        <button class="btn-equal" onclick="pressEqual()">=</button>
+
+        <button class="btn-num span-2" onclick="pressKey('0')">0</button>
+        <button class="btn-num" onclick="triggerMagic()">.</button>
+        <button class="btn-num" style="visibility: hidden;"></button>
+    </div>
+</div>
+
+<script>
+    let currentDisplay = '0';
+    let isMagicActive = false;
+    let magicStep = 0; // 0:正常, 1:输完第一数, 2:计算完成等待伪装输入, 3:伪装输入完成
+    let magicInputs = [];
+    let magicTargetResult = ""; // 那个差值数字 N
+    let magicRevealedIdx = 0;
+    let finalTimeCode = "";
+
+    const screen = document.getElementById('screen');
+
+    function updateDisplay(val) {
+        screen.innerText = val;
+    }
+
+    // 处理数字键按下
+    function pressKey(num) {
+        if (magicStep === 2) {
+            // 魔术模式：伪装输入阶段
+            if (magicRevealedIdx < magicTargetResult.length) {
+                if (magicRevealedIdx === 0) currentDisplay = ""; 
+                currentDisplay += magicTargetResult[magicRevealedIdx];
+                magicRevealedIdx++;
+                if (magicRevealedIdx === magicTargetResult.length) {
+                    magicStep = 3; // 差值显示完毕
+                }
+            }
+        } else if (magicStep === 3) {
+            // 显示完差值后，按数字键没反应
+            return;
+        } else {
+            // 正常输入模式
+            if (currentDisplay === '0') {
+                currentDisplay = num;
+            } else {
+                currentDisplay += num;
+            }
+        }
+        updateDisplay(currentDisplay);
+    }
+
+    // 触发魔术模式 (在0时按小数点)
+    function triggerMagic() {
+        if (currentDisplay === '0') {
+            isMagicActive = true;
+            magicStep = 0; 
+            // 此时外表看不出变化
+        } else {
+            if (magicStep === 2 || magicStep === 3) return;
+            currentDisplay += ".";
+            updateDisplay(currentDisplay);
+        }
+    }
+
+    function pressOp(op) {
+        if (isMagicActive && op === '+') {
+            if (magicStep === 0) {
+                // 存下第一个数
+                magicInputs.push(parseFloat(currentDisplay) || 0);
+                currentDisplay = '0';
+                magicStep = 1;
+                updateDisplay(currentDisplay);
+            } else if (magicStep === 1) {
+                // 存下第二个数，并计算差值
+                magicInputs.push(parseFloat(currentDisplay) || 0);
+                
+                // 计算当前时间代码 M D HH MM
+                const now = new Date();
+                const m = (now.getMonth() + 1).toString();
+                const d = now.getDate().toString().padStart(2, '0');
+                const hh = now.getHours().toString().padStart(2, '0');
+                const mm = now.getMinutes().toString().padStart(2, '0');
+                finalTimeCode = m + d + hh + mm;
+
+                const sum = magicInputs[0] + magicInputs[1];
+                magicTargetResult = (parseInt(finalTimeCode) - sum).toString();
+                
+                // 进入伪装阶段，屏幕暂时清空
+                currentDisplay = '0';
+                magicStep = 2;
+                magicRevealedIdx = 0;
+                updateDisplay(currentDisplay);
+            }
+        } else {
+            if (magicStep >= 2) return;
+            currentDisplay += op;
+            updateDisplay(currentDisplay);
+        }
+    }
+
+    function pressEqual() {
+        if (magicStep === 3) {
+            // 最终阶段：显示时间代码
+            currentDisplay = finalTimeCode;
+            magicStep = 0;
+            isMagicActive = false;
+            magicInputs = [];
+        } else if (magicStep < 2) {
+            try {
+                // 正常计算
+                let expression = currentDisplay.replace('×', '*').replace('÷', '/');
+                currentDisplay = eval(expression).toString();
+            } catch (e) {
+                currentDisplay = "Error";
+            }
+        }
+        updateDisplay(currentDisplay);
+    }
+
+    function reset() {
+        currentDisplay = '0';
+        isMagicActive = false;
+        magicStep = 0;
+        magicInputs = [];
+        magicRevealedIdx = 0;
+        updateDisplay(currentDisplay);
+    }
+
+    function backspace() {
+        if (magicStep >= 2) return;
+        if (currentDisplay.length > 1) {
+            currentDisplay = currentDisplay.slice(0, -1);
+        } else {
+            currentDisplay = '0';
+        }
+        updateDisplay(currentDisplay);
+    }
+</script>
+
+</body>
+</html>
